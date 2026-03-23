@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analytics Business Problem Map</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+  background: #f8f7f3;
+  color: #1a1a1a;
+}
+
+.header {
+  padding: 18px 22px 10px;
+  border-bottom: 0.5px solid #e0ddd5;
+  background: #fff;
+}
+.header h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 3px; }
+.header p { font-size: 12px; color: #666; }
+
+.product-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 20px;
+  border-bottom: 0.5px solid #e0ddd5;
+  background: #f8f7f3;
+}
+
+.prod-pill {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 500;
+  padding: 3px 9px; border-radius: 20px; cursor: pointer;
+  border: 1.5px solid transparent; transition: all 0.15s;
+}
+.prod-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+.search-row {
+  padding: 8px 20px;
+  border-bottom: 0.5px solid #e0ddd5;
+  display: flex; align-items: center; gap: 8px;
+  background: #fff;
+}
+.search-row input {
+  flex: 1; border: 0.5px solid #ccc;
+  border-radius: 6px; padding: 5px 10px; font-size: 12.5px;
+  background: #fff; color: #1a1a1a; outline: none;
+  font-family: inherit;
+}
+.search-row input:focus { border-color: #185FA5; }
+.clear-btn {
+  font-size: 11px; color: #666; cursor: pointer;
+  padding: 3px 8px; border: 0.5px solid #e0ddd5;
+  border-radius: 5px; background: none; font-family: inherit;
+}
+.clear-btn:hover { background: #f8f7f3; }
+
+.count-bar {
+  padding: 5px 20px; font-size: 11px; color: #666;
+  background: #f8f7f3;
+  border-bottom: 0.5px solid #e0ddd5;
+}
+
+.dept-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 1px;
+  background: #e0ddd5;
+}
+
+.dept-card {
+  background: #fff;
+  padding: 14px 16px;
+  transition: background 0.15s;
+}
+.dept-card:hover { background: #f8f7f3; }
+.dept-card.filtered-out { opacity: 0.2; }
+
+.dept-header { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+.dept-icon {
+  width: 30px; height: 30px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.dept-name { font-size: 13px; font-weight: 600; }
+.dept-sub { font-size: 10.5px; color: #666; margin-top: 1px; }
+
+.problem-list { list-style: none; }
+.problem-item {
+  display: flex; align-items: flex-start; gap: 7px;
+  padding: 5px 0; border-bottom: 0.5px solid #e0ddd5;
+  font-size: 12px; line-height: 1.4; transition: opacity 0.2s;
+}
+.problem-item:last-child { border-bottom: none; }
+.problem-item.dimmed { opacity: 0.1; }
+
+.prod-tags { display: flex; gap: 3px; flex-shrink: 0; margin-top: 1px; }
+.tag {
+  font-size: 9px; font-weight: 600; padding: 2px 5px;
+  border-radius: 3px; letter-spacing: 0.2px; white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .dept-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Analytics business problem map — Salesforce AE quick reference</h1>
+  <p>Click a product to filter. Search any keyword. Every row = a real conversation starter.</p>
+</div>
+
+<div class="product-legend" id="legend"></div>
+
+<div class="search-row">
+  <input type="text" id="search" placeholder="Search department, problem, or product..." oninput="applyFilters()">
+  <button class="clear-btn" onclick="clearAll()">Clear all</button>
+</div>
+
+<div class="count-bar" id="count-bar"></div>
+<div class="dept-grid" id="grid"></div>
+
+<script>
+var PRODUCTS = [
+  { id:'tc',   label:'Tableau Cloud',        short:'TC',   color:'#185FA5', bg:'#E6F1FB' },
+  { id:'ts',   label:'Tableau Server',       short:'TS',   color:'#0F6E56', bg:'#E1F5EE' },
+  { id:'te',   label:'Tableau Embedded',     short:'TE',   color:'#533AB7', bg:'#EEEDFE' },
+  { id:'crma', label:'CRM Analytics',        short:'CRMA', color:'#854F0B', bg:'#FAEEDA' },
+  { id:'ri',   label:'Revenue Intelligence', short:'RI',   color:'#993C1D', bg:'#FAECE7' },
+];
+
+var DEPTS = [
+  { name:'Sales', icon:'📈', color:'#185FA5', bg:'#E6F1FB', sub:'AEs, SEs, Sales Ops, RevOps', problems:[
+    { text:'No visibility into pipeline health or at-risk deals', prods:['crma','ri'] },
+    { text:'Reps spending hours in spreadsheets instead of selling', prods:['crma','tc'] },
+    { text:'Forecast accuracy is low; leadership can\'t commit to the number', prods:['ri','crma'] },
+    { text:'Can\'t track quota attainment by rep, segment, or product in real time', prods:['crma','tc'] },
+    { text:'Deal inspection is manual and inconsistent across managers', prods:['ri','crma'] },
+    { text:'Activity data (calls, emails, meetings) not connected to outcomes', prods:['ri','crma'] },
+    { text:'Can\'t identify which territories or segments are underperforming fast enough', prods:['crma','tc','ts'] },
+    { text:'Win/loss analysis is anecdotal, not data-driven', prods:['tc','crma'] },
+    { text:'No self-service reporting; ops team is a bottleneck', prods:['tc','ts'] },
+    { text:'Multi-cloud data (SFDC + ERP + marketing) lives in silos', prods:['tc','ts','te'] },
+  ]},
+  { name:'Marketing', icon:'🎯', color:'#0F6E56', bg:'#E1F5EE', sub:'Demand gen, campaigns, brand, MOps', problems:[
+    { text:'Can\'t prove marketing ROI or attribute revenue to campaigns', prods:['tc','crma'] },
+    { text:'Reporting is backwards-looking; decisions are reactive not proactive', prods:['tc','crma'] },
+    { text:'Campaign performance dashboards require manual Excel exports', prods:['tc','ts'] },
+    { text:'MQL-to-SQL conversion is a black box with no drill-down', prods:['crma','tc'] },
+    { text:'Different tools (Pardot, GA, paid) report different numbers', prods:['tc','ts'] },
+    { text:'Can\'t segment audience performance by region, persona, or channel', prods:['tc','crma'] },
+    { text:'Leadership wants a single marketing dashboard across all channels', prods:['tc','ts','te'] },
+    { text:'Can\'t measure content or email engagement tied to pipeline', prods:['crma','tc'] },
+    { text:'Website and digital analytics disconnected from CRM data', prods:['tc','ts'] },
+    { text:'Marketing and sales argue over lead quality — no shared data', prods:['crma','tc'] },
+  ]},
+  { name:'Service & Support', icon:'🎧', color:'#854F0B', bg:'#FAEEDA', sub:'Contact center, field service, CS', problems:[
+    { text:'CSAT and NPS trends not visible until after the quarter closes', prods:['crma','tc'] },
+    { text:'Case volume spikes aren\'t caught early enough to staff correctly', prods:['tc','crma'] },
+    { text:'Agent performance is tracked in spreadsheets or not at all', prods:['crma','tc','ts'] },
+    { text:'Customer health scores live in disconnected systems', prods:['tc','crma'] },
+    { text:'Can\'t identify which product issues are driving the most cases', prods:['tc','ts'] },
+    { text:'Supervisors lack real-time queue visibility', prods:['crma','tc'] },
+    { text:'Escalation patterns aren\'t surfaced until the customer churns', prods:['crma','ri'] },
+    { text:'Self-service deflection rate is unmeasured and unoptimized', prods:['tc','ts'] },
+    { text:'Field service routing decisions aren\'t data-driven', prods:['tc','crma'] },
+    { text:'First-call resolution tracked inconsistently across teams', prods:['crma','tc'] },
+  ]},
+  { name:'Operations', icon:'⚙️', color:'#993C1D', bg:'#FAECE7', sub:'Supply chain, logistics, manufacturing, RevOps', problems:[
+    { text:'Supply chain disruptions aren\'t flagged until orders are already late', prods:['tc','ts'] },
+    { text:'Operational KPIs spread across 6 different tools with no single view', prods:['tc','ts','te'] },
+    { text:'Inventory data is stale by the time leadership reviews it', prods:['tc','ts'] },
+    { text:'No self-service analytics for plant managers or regional leads', prods:['ts','tc'] },
+    { text:'Manual reporting takes 3 days; decisions wait on IT', prods:['tc','ts'] },
+    { text:'Can\'t embed operational dashboards in internal tools or portals', prods:['te'] },
+    { text:'Vendor performance is tracked in spreadsheets with no benchmarking', prods:['tc','ts'] },
+    { text:'Can\'t measure process efficiency (cycle time, defect rate) in real time', prods:['tc','ts'] },
+    { text:'Workforce scheduling is gut-feel, not demand-driven', prods:['tc','crma'] },
+    { text:'Customer-facing portals lack data insights for clients', prods:['te'] },
+  ]},
+  { name:'Finance', icon:'💼', color:'#533AB7', bg:'#EEEDFE', sub:'FP&A, accounting, treasury, controllers', problems:[
+    { text:'Monthly close takes 2 weeks; variance analysis is a spreadsheet nightmare', prods:['tc','ts'] },
+    { text:'Finance can\'t self-serve; every report request goes to IT or BI team', prods:['tc','ts'] },
+    { text:'Budget vs actuals visibility is delayed by days or weeks', prods:['tc','ts','crma'] },
+    { text:'Revenue recognition requires pulling from 5 different source systems', prods:['tc','ts'] },
+    { text:'Cash flow forecasting is manual and error-prone', prods:['tc','ts'] },
+    { text:'Executive dashboards are static slides that go stale immediately', prods:['tc','ts','te'] },
+    { text:'Can\'t do ad-hoc analysis without IT involvement', prods:['tc','ts'] },
+    { text:'ARR/MRR tracking inconsistent across teams and systems', prods:['crma','tc','ri'] },
+    { text:'Compliance reporting requires manual data pulls each cycle', prods:['tc','ts'] },
+    { text:'M&A integration data chaos — no unified financial view post-close', prods:['tc','ts','te'] },
+  ]},
+  { name:'IT & Data', icon:'🖥', color:'#3B6D11', bg:'#EAF3DE', sub:'Data engineering, IT ops, security, BI teams', problems:[
+    { text:'Business users keep requesting custom reports from already-overloaded BI team', prods:['tc','ts'] },
+    { text:'Data governance and row-level security hard to enforce at scale', prods:['ts','tc','te'] },
+    { text:'Legacy on-prem infrastructure blocks modern analytics capabilities', prods:['tc','ts'] },
+    { text:'No single platform for all analytics; tool sprawl is out of control', prods:['tc','ts','te'] },
+    { text:'Deploying and maintaining dashboards is manual and error-prone', prods:['ts','te'] },
+    { text:'Can\'t embed analytics in internal apps without building from scratch', prods:['te'] },
+    { text:'IT ops metrics (uptime, incidents, ticket volume) live in siloed tools', prods:['tc','ts'] },
+    { text:'Data freshness SLAs are consistently missed for key stakeholders', prods:['tc','ts'] },
+    { text:'Cloud migration stalled because analytics layer isn\'t ready', prods:['tc','ts'] },
+    { text:'Need to surface insights inside Salesforce without exporting to Excel', prods:['crma','te'] },
+  ]},
+  { name:'HR & People', icon:'👥', color:'#A32D2D', bg:'#FCEBEB', sub:'HRBP, talent acquisition, L&D, workforce planning', problems:[
+    { text:'Attrition trends not identified until high performers have already left', prods:['tc','ts','crma'] },
+    { text:'Headcount planning relies on quarterly spreadsheets, not live data', prods:['tc','ts'] },
+    { text:'DEI reporting is manual and inconsistent across regions', prods:['tc','ts'] },
+    { text:'Time-to-hire and quality-of-hire aren\'t tracked in a unified view', prods:['tc','crma'] },
+    { text:'Employee engagement survey data never gets actioned — no dashboards', prods:['tc','ts'] },
+    { text:'Compensation benchmarking is a once-a-year exercise, not ongoing', prods:['tc','ts'] },
+    { text:'L&D teams can\'t measure training ROI or completion linked to performance', prods:['tc','ts'] },
+    { text:'Workforce capacity planning disconnected from revenue forecasts', prods:['tc','crma','ri'] },
+    { text:'HR data locked in Workday — no way to blend with Salesforce data', prods:['tc','ts','te'] },
+    { text:'No self-service for managers to track their team\'s performance metrics', prods:['tc','ts'] },
+  ]},
+];
+
+var activeProds = {};
+var searchTerm = '';
+
+function p(id) { return PRODUCTS.find(function(x){ return x.id===id; }); }
+
+function renderLegend() {
+  var leg = document.getElementById('legend');
+  PRODUCTS.forEach(function(pr) {
+    var el = document.createElement('div');
+    el.className = 'prod-pill';
+    el.style.cssText = 'color:'+pr.color+';background:'+pr.bg;
+    el.dataset.id = pr.id;
+    el.innerHTML = '<span class="dot" style="background:'+pr.color+'"></span>'+pr.label;
+    el.onclick = function(){ toggleProd(pr.id); };
+    leg.appendChild(el);
+  });
+}
+
+function toggleProd(id) {
+  activeProds[id] = !activeProds[id];
+  document.querySelectorAll('.prod-pill').forEach(function(el) {
+    var pr = p(el.dataset.id);
+    el.style.borderColor = activeProds[el.dataset.id] ? pr.color : 'transparent';
+    el.style.fontWeight = activeProds[el.dataset.id] ? '600' : '500';
+  });
+  applyFilters();
+}
+
+function applyFilters() {
+  searchTerm = document.getElementById('search').value.toLowerCase();
+  var hasFilter = Object.values(activeProds).some(Boolean);
+  var total = 0, visible = 0;
+  document.querySelectorAll('.dept-card').forEach(function(card, di) {
+    var dept = DEPTS[di];
+    var deptHas = false;
+    card.querySelectorAll('.problem-item').forEach(function(item, pi) {
+      var prob = dept.problems[pi];
+      total++;
+      var matchProd = !hasFilter || prob.prods.some(function(pid){ return activeProds[pid]; });
+      var matchSearch = !searchTerm ||
+        prob.text.toLowerCase().includes(searchTerm) ||
+        dept.name.toLowerCase().includes(searchTerm) ||
+        dept.sub.toLowerCase().includes(searchTerm) ||
+        prob.prods.some(function(pid){ var pr=p(pid); return pr && pr.label.toLowerCase().includes(searchTerm); });
+      var show = matchProd && matchSearch;
+      item.classList.toggle('dimmed', !show);
+      if (show) { deptHas=true; visible++; }
+    });
+    card.classList.toggle('filtered-out', !deptHas);
+  });
+  document.getElementById('count-bar').textContent = (hasFilter || searchTerm)
+    ? 'Showing ' + visible + ' of ' + total + ' use cases'
+    : 'Showing all ' + total + ' use cases across ' + DEPTS.length + ' departments';
+}
+
+function clearAll() {
+  activeProds = {};
+  document.getElementById('search').value = '';
+  document.querySelectorAll('.prod-pill').forEach(function(el){
+    el.style.borderColor = 'transparent';
+    el.style.fontWeight = '500';
+  });
+  applyFilters();
+}
+
+function renderGrid() {
+  var grid = document.getElementById('grid');
+  DEPTS.forEach(function(dept) {
+    var card = document.createElement('div');
+    card.className = 'dept-card';
+    var probs = dept.problems.map(function(prob) {
+      var tags = prob.prods.map(function(pid){
+        var pr = p(pid);
+        return '<span class="tag" style="background:'+pr.bg+';color:'+pr.color+'">'+pr.short+'</span>';
+      }).join('');
+      return '<li class="problem-item"><div class="prod-tags">'+tags+'</div><span>'+prob.text+'</span></li>';
+    }).join('');
+    card.innerHTML =
+      '<div class="dept-header">' +
+        '<div class="dept-icon" style="background:'+dept.bg+'">'+dept.icon+'</div>' +
+        '<div><div class="dept-name" style="color:'+dept.color+'">'+dept.name+'</div>' +
+        '<div class="dept-sub">'+dept.sub+'</div></div>' +
+      '</div>' +
+      '<ul class="problem-list">'+probs+'</ul>';
+    grid.appendChild(card);
+  });
+}
+
+renderLegend();
+renderGrid();
+applyFilters();
+</script>
+</body>
+</html>
